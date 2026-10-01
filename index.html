@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Vuelo de Cohetes</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styling for dark aerospace theme */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        canvas {
+            touch-action: none;
+        }
+        .control-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between select-none">
+
+    <header class="border-b border-slate-800 bg-slate-900/80 px-4 py-3 sticky top-0 z-50 backdrop-blur">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white font-bold text-xl">🚀</div>
+                <div>
+                    <h1 class="text-lg font-bold text-white leading-tight">Simulador de Vuelo de Cohetes</h1>
+                </div>
+            </div>
+            <span class="hidden md:inline-block bg-slate-800 text-xs px-3 py-1.5 rounded-full text-slate-300 border border-slate-700">
+                Física de Barrowman
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+        
+        <!-- LEFT COLUMN: Canvas Simulation Area -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            <div class="relative control-card rounded-2xl overflow-hidden shadow-2xl flex-grow min-h-[440px] lg:min-h-[540px] flex items-center justify-center border border-slate-800">
+
+                <!-- Margin Metric Overlay -->
+                <div class="absolute top-4 right-4 z-10 control-card px-3 py-2 rounded-xl text-xs text-slate-300 border border-slate-700/50">
+                    <div>Margen de Estabilidad:</div>
+                    <div id="marginValue" class="text-lg font-bold text-white text-right">1.25 cal</div>
+                </div>
+
+                <!-- Flight Outcome Modal Overlay -->
+                <div id="outcomeModal" class="hidden absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                    <div id="modalIcon" class="text-5xl mb-3">🎉</div>
+                    <h2 id="modalTitle" class="text-2xl font-bold text-white mb-6">¡Vuelo Exitoso!</h2>
+                    <p id="modalDesc" class="hidden"></p>
+                    <button onclick="closeModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition">
+                        Ajustar Parámetros
+                    </button>
+                </div>
+
+                <!-- Main Canvas Element -->
+                <canvas id="simCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+                <!-- On-Canvas Controls Overlay -->
+                <div class="absolute bottom-4 left-4 right-4 z-10 flex gap-3 justify-center">
+                    <button id="launchBtn" onclick="toggleSimulation()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition flex items-center gap-2">
+                        <span>🚀 Simular Lanzamiento</span>
+                    </button>
+                    <button id="resetBtn" onclick="resetProgram()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-semibold py-3 px-5 rounded-xl border border-slate-700 shadow-lg transition">
+                        🔄 Reiniciar
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="control-card p-3 rounded-xl flex items-center gap-3">
+                    <div class="w-6 h-6 rounded-full border-2 border-amber-400 flex items-center justify-center font-bold text-[10px] text-amber-400">CG</div>
+                    <div>
+                        <div class="font-bold text-slate-200">Centro de Gravedad (CG)</div>
+                    </div>
+                </div>
+                <div class="control-card p-3 rounded-xl flex items-center gap-3">
+                    <div class="w-6 h-6 rounded-full border-2 border-cyan-400 flex items-center justify-center font-bold text-[10px] text-cyan-400">CP</div>
+                    <div>
+                        <div class="font-bold text-slate-200">Centro de Presión (CP)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="lg:col-span-5 flex flex-col gap-5">
+            
+            <!-- Control Panel -->
+            <div class="control-card p-5 rounded-2xl border border-slate-800 space-y-5">
+                <h2 class="text-md font-bold text-white border-b border-slate-800 pb-2 flex justify-between items-center">
+                    <span>⚙️ Parámetros del Cohete</span>
+                    <span class="text-xs text-indigo-400 font-normal">Cambios en tiempo real</span>
+                </h2>
+
+                <!-- Control 1: Fin Position -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <label for="finPosRange" class="text-slate-300 font-medium">Posición de Aletas</label>
+                        <span id="finPosVal" class="text-indigo-400 font-mono font-bold">85%</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustParam('finPos', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">-</button>
+                        <input type="range" id="finPosRange" min="30" max="95" value="85" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <button onclick="adjustParam('finPos', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">+</button>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Mueve las aletas a lo largo del cuerpo del cohete.</p>
+                </div>
+
+                <!-- Control 2: Fin Width (Largo en el cuerpo) -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <label for="finWidthRange" class="text-slate-300 font-medium">Ancho de Aleta (Largo en tubo)</label>
+                        <span id="finWidthVal" class="text-indigo-400 font-mono font-bold">35 px</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustParam('finWidth', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">-</button>
+                        <input type="range" id="finWidthRange" min="10" max="80" value="35" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <button onclick="adjustParam('finWidth', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">+</button>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Longitud del borde adjunto al cuerpo del cohete.</p>
+                </div>
+
+                <!-- Control 3: Fin Height (Envergadura sobresaliente) -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <label for="finHeightRange" class="text-slate-300 font-medium">Alto de Aleta (Envergadura)</label>
+                        <span id="finHeightVal" class="text-indigo-400 font-mono font-bold">35 px</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustParam('finHeight', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">-</button>
+                        <input type="range" id="finHeightRange" min="10" max="80" value="35" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <button onclick="adjustParam('finHeight', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">+</button>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Distancia que sobresale la aleta lateralmente ($Área = Alto \times Ancho$).</p>
+                </div>
+
+                <!-- Control 4: Payload Mass (Nose mass) -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <label for="payloadRange" class="text-slate-300 font-medium">Masa de Ojiva (Carga útil)</label>
+                        <span id="payloadVal" class="text-indigo-400 font-mono font-bold">0 g</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustParam('payload', -25)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">-</button>
+                        <input type="range" id="payloadRange" min="0" max="400" step="10" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <button onclick="adjustParam('payload', 25)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-8 h-8 rounded-lg font-bold transition">+</button>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Añadir peso en la punta desplaza el Centro de Gravedad (CG) hacia arriba.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="border-t border-slate-800/60 bg-slate-900/40 py-3 text-center text-xs text-slate-500">
+        Simulador Educativo de Cohetería Experimental • Método de Barrowman para Aletas Cuadradas
+    </footer>
+
+    <script>
+        // Physical dimensions & scaling
+        const ROCKET_BODY_LENGTH = 220; // Length in pixels
+        const ROCKET_DIAMETER = 30;     // Diameter in pixels (1 Caliber = 30px)
+        const BASE_BODY_MASS = 50;      // Fuselage mass (g)
+        const MOTOR_MASS = 220;         // Heavy motor mass at tail (g)
+
+        // Simulation State
+        let params = {
+            finPos: 85,       // % along body length
+            finWidth: 35,     // Fin length along body (px)
+            finHeight: 35,    // Fin span outward (px)
+            payloadMass: 0    // Default payload mass in nose cone (g)
+        };
+
+        let calculated = {
+            cgY: 0,
+            cpY: 0,
+            marginCalibers: 0,
+            status: 'INESTABLE'  // 'ESTABLE', 'MARGINAL', 'INESTABLE'
+        };
+
+        // Extended World Coordinates & Dynamic Camera Tracking
+        let flightState = {
+            isFlying: false,
+            worldX: 0,         // World position X
+            worldY: 0,         // World position Y (altitude in pixels, 1m = 10px)
+            vx: 0,             // World velocity X
+            vy: 0,             // World velocity Y
+            angle: 0,          // Angle in radians (0 = straight up)
+            angularVel: 0,     // Angular velocity
+            time: 0,           // Flight time in seconds
+            burnTime: 2.5,     // Engine thrust burn duration in seconds
+            phase: 'PROPULSIÓN', // 'PROPULSIÓN', 'INERCIA', 'DESCONTROL'
+            maxAltitude: 0,    // Peak altitude in meters
+            particles: []
+        };
+
+        // Animation frame tracker
+        let animId = null;
+
+        // Smooth Camera Tracker
+        let camera = {
+            x: 0,
+            y: 0,
+            targetX: 0,
+            targetY: 0
+        };
+
+        // Environment Background Assets
+        let clouds = [];
+        let stars = [];
+
+        // DOM Element references
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const finPosRange = document.getElementById('finPosRange');
+        const finWidthRange = document.getElementById('finWidthRange');
+        const finHeightRange = document.getElementById('finHeightRange');
+        const payloadRange = document.getElementById('payloadRange');
+
+        function initEnvironment() {
+            // Generate clouds spread across world altitudes up to 25,000 px
+            clouds = [];
+            for (let i = 0; i < 45; i++) {
+                clouds.push({
+                    x: (Math.random() - 0.5) * 2400,
+                    y: 400 + Math.random() * 20000,
+                    radius: 30 + Math.random() * 50,
+                    opacity: 0.15 + Math.random() * 0.35
+                });
+            }
+
+            // Generate high-altitude stars
+            stars = [];
+            for (let i = 0; i < 80; i++) {
+                stars.push({
+                    x: (Math.random() - 0.5) * 3000,
+                    y: 6000 + Math.random() * 25000,
+                    size: 1 + Math.random() * 2.5,
+                    alpha: 0.3 + Math.random() * 0.7
+                });
+            }
+        }
+
+        function initEvents() {
+            finPosRange.addEventListener('input', (e) => {
+                params.finPos = parseFloat(e.target.value);
+                document.getElementById('finPosVal').innerText = params.finPos + '%';
+                updatePhysics();
+            });
+
+            finWidthRange.addEventListener('input', (e) => {
+                params.finWidth = parseFloat(e.target.value);
+                document.getElementById('finWidthVal').innerText = params.finWidth + ' px';
+                updatePhysics();
+            });
+
+            finHeightRange.addEventListener('input', (e) => {
+                params.finHeight = parseFloat(e.target.value);
+                document.getElementById('finHeightVal').innerText = params.finHeight + ' px';
+                updatePhysics();
+            });
+
+            payloadRange.addEventListener('input', (e) => {
+                params.payloadMass = parseFloat(e.target.value);
+                document.getElementById('payloadVal').innerText = params.payloadMass + ' g';
+                updatePhysics();
+            });
+
+            window.addEventListener('resize', resizeCanvas);
+            initEnvironment();
+            resizeCanvas();
+        }
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            if (!flightState.isFlying) {
+                drawScene();
+            }
+        }
+
+        function adjustParam(param, delta) {
+            if (flightState.isFlying) return;
+
+            if (param === 'finPos') {
+                params.finPos = Math.min(95, Math.max(30, params.finPos + delta));
+                finPosRange.value = params.finPos;
+                document.getElementById('finPosVal').innerText = params.finPos + '%';
+            } else if (param === 'finWidth') {
+                params.finWidth = Math.min(80, Math.max(10, params.finWidth + delta));
+                finWidthRange.value = params.finWidth;
+                document.getElementById('finWidthVal').innerText = params.finWidth + ' px';
+            } else if (param === 'finHeight') {
+                params.finHeight = Math.min(80, Math.max(10, params.finHeight + delta));
+                finHeightRange.value = params.finHeight;
+                document.getElementById('finHeightVal').innerText = params.finHeight + ' px';
+            } else if (param === 'payload') {
+                params.payloadMass = Math.min(400, Math.max(0, params.payloadMass + delta));
+                payloadRange.value = params.payloadMass;
+                document.getElementById('payloadVal').innerText = params.payloadMass + ' g';
+            }
+            updatePhysics();
+        }
+
+        function updatePhysics() {
+            // 1. Calculate Center of Gravity (CG)
+            const noseTipMassPos = 15;  // Payload mass near tip
+            const bodyCenterPos = 120;  // Body tube center of mass
+            const motorPos = 195;       // Heavy motor mass near tail
+            
+            // Rectangular fin geometry mass
+            const finArea = params.finWidth * params.finHeight;
+            const finMass = 0.008 * finArea;
+            
+            const finYPos = (params.finPos / 100) * ROCKET_BODY_LENGTH;
+            const finCenterY = finYPos + (params.finWidth / 2);
+
+            // Total mass includes fuselage, motor at tail, nose payload, and fins
+            const totalMass = BASE_BODY_MASS + MOTOR_MASS + params.payloadMass + finMass;
+            const moments = (params.payloadMass * noseTipMassPos) + 
+                            (BASE_BODY_MASS * bodyCenterPos) + 
+                            (MOTOR_MASS * motorPos) + 
+                            (finMass * finCenterY);
+
+            calculated.cgY = moments / totalMass;
+
+            // 2. Calculate Center of Pressure (CP) - Barrowman for Rectangular Fins
+            const noseCP = 35;
+            const noseAreaWeight = 300;
+
+            const rectFinCP = finYPos + (params.finWidth / 2);
+            const finAerodynamicWeight = finArea * 1.1;
+
+            calculated.cpY = ((noseCP * noseAreaWeight) + (rectFinCP * finAerodynamicWeight)) / (noseAreaWeight + finAerodynamicWeight);
+
+            // 3. Stability Margin in Calibers
+            const marginPx = calculated.cpY - calculated.cgY;
+            calculated.marginCalibers = marginPx / ROCKET_DIAMETER;
+
+            if (calculated.marginCalibers >= 1.0) {
+                calculated.status = 'ESTABLE';
+            } else if (calculated.marginCalibers >= 0.0) {
+                calculated.status = 'MARGINAL';
+            } else {
+                calculated.status = 'INESTABLE';
+            }
+
+            updateUI();
+            if (!flightState.isFlying) {
+                drawScene();
+            }
+        }
+
+        function updateUI() {
+            const marginValue = document.getElementById('marginValue');
+            marginValue.innerText = calculated.marginCalibers.toFixed(2) + ' cal';
+        }
+
+        // Convert World Coordinates to Canvas Screen Coordinates
+        function worldToScreen(wx, wy) {
+            const screenX = (canvas.width / 2) + (wx - camera.x);
+            // World Y = 0 is at pad height (canvas.height * 0.65)
+            const screenY = (canvas.height * 0.65) - (wy - camera.y);
+            return { x: screenX, y: screenY };
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Dynamic Atmosphere Sky Gradient based on Camera Altitude
+            const currentAltMeters = camera.y / 10;
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            
+            if (currentAltMeters < 300) {
+                skyGradient.addColorStop(0, '#0f172a'); // Deep navy
+                skyGradient.addColorStop(1, '#1e293b');
+            } else if (currentAltMeters < 1200) {
+                skyGradient.addColorStop(0, '#090d16');
+                skyGradient.addColorStop(1, '#0f172a');
+            } else {
+                skyGradient.addColorStop(0, '#020617'); // Space / Stratosphere
+                skyGradient.addColorStop(1, '#090d16');
+            }
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Draw Stars in Upper Atmosphere
+            if (currentAltMeters > 400) {
+                stars.forEach(star => {
+                    const pos = worldToScreen(star.x, star.y);
+                    if (pos.y >= 0 && pos.y <= canvas.height && pos.x >= 0 && pos.x <= canvas.width) {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, (currentAltMeters - 400) / 800) * star.alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, star.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
+
+            // 3. Grid line accents (Aviation Altitude Markers)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // 4. Draw Parallax Clouds
+            clouds.forEach(cloud => {
+                const pos = worldToScreen(cloud.x, cloud.y);
+                if (pos.y >= -100 && pos.y <= canvas.height + 100) {
+                    ctx.save();
+                    ctx.fillStyle = `rgba(226, 232, 240, ${cloud.opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, cloud.radius, 0, Math.PI * 2);
+                    ctx.arc(pos.x + cloud.radius * 0.6, pos.y - cloud.radius * 0.2, cloud.radius * 0.7, 0, Math.PI * 2);
+                    ctx.arc(pos.x - cloud.radius * 0.6, pos.y - cloud.radius * 0.2, cloud.radius * 0.7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // 5. Draw Launch Pad Base (if visible)
+            const padPos = worldToScreen(0, 0);
+            if (padPos.y > -100 && padPos.y < canvas.height + 100) {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(padPos.x - 90, padPos.y, 180, 18);
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(padPos.x - 4, padPos.y - 160, 8, 160);
+            }
+
+            // 6. Draw Exhaust Particles (World coordinates)
+            drawParticles();
+
+            // 7. Rocket position on screen
+            let rScreen;
+            if (flightState.isFlying) {
+                rScreen = worldToScreen(flightState.worldX, flightState.worldY);
+            } else {
+                rScreen = worldToScreen(0, 0);
+            }
+
+            // 8. Draw Rocket Model
+            drawRocket(rScreen.x, rScreen.y, flightState.angle);
+        }
+
+        function drawRocket(screenX, screenY, angle = 0) {
+            ctx.save();
+            ctx.translate(screenX, screenY);
+            ctx.rotate(angle);
+
+            const rRadius = ROCKET_DIAMETER / 2;
+            const finYPos = (params.finPos / 100) * ROCKET_BODY_LENGTH;
+            const finW = params.finWidth;   // Length along body axis
+            const finH = params.finHeight;  // Span extending outward
+
+            // 1. Draw Rectangular Fins (Left & Right)
+            ctx.fillStyle = '#6366f1'; // Indigo 500
+            ctx.strokeStyle = '#818cf8';
+            ctx.lineWidth = 2;
+
+            // Left Rectangular Fin
+            ctx.fillRect(-rRadius - finH, finYPos - ROCKET_BODY_LENGTH, finH, finW);
+            ctx.strokeRect(-rRadius - finH, finYPos - ROCKET_BODY_LENGTH, finH, finW);
+
+            // Right Rectangular Fin
+            ctx.fillRect(rRadius, finYPos - ROCKET_BODY_LENGTH, finH, finW);
+            ctx.strokeRect(rRadius, finYPos - ROCKET_BODY_LENGTH, finH, finW);
+
+            // 2. Main Cylindrical Body Tube
+            const bodyGradient = ctx.createLinearGradient(-rRadius, 0, rRadius, 0);
+            bodyGradient.addColorStop(0, '#cbd5e1');
+            bodyGradient.addColorStop(0.5, '#f8fafc');
+            bodyGradient.addColorStop(1, '#64748b');
+
+            ctx.fillStyle = bodyGradient;
+            ctx.fillRect(-rRadius, 50 - ROCKET_BODY_LENGTH, ROCKET_DIAMETER, ROCKET_BODY_LENGTH - 50);
+
+            // 3. Red Nose Cone
+            ctx.beginPath();
+            ctx.moveTo(-rRadius, 50 - ROCKET_BODY_LENGTH);
+            ctx.quadraticCurveTo(0, -ROCKET_BODY_LENGTH, 0, -ROCKET_BODY_LENGTH);
+            ctx.quadraticCurveTo(0, -ROCKET_BODY_LENGTH, rRadius, 50 - ROCKET_BODY_LENGTH);
+            ctx.closePath();
+            ctx.fillStyle = '#ef4444';
+            ctx.fill();
+            ctx.strokeStyle = '#fca5a5';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // 4. Engine Nozzle
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-rRadius + 4, 0, ROCKET_DIAMETER - 8, 12);
+
+            // 5. Draw Physics CG & CP Markers when in setup mode
+            if (!flightState.isFlying) {
+                const cgDrawY = calculated.cgY - ROCKET_BODY_LENGTH;
+                const cpDrawY = calculated.cpY - ROCKET_BODY_LENGTH;
+
+                // CG Marker
+                drawCGMarker(0, cgDrawY);
+
+                // CP Marker
+                drawCPMarker(0, cpDrawY);
+
+                // Connecting line between CG and CP
+                ctx.beginPath();
+                ctx.setLineDash([3, 3]);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.moveTo(rRadius + 20, cgDrawY);
+                ctx.lineTo(rRadius + 20, cpDrawY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        function drawCGMarker(x, y) {
+            const radius = 10;
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, radius, 0, Math.PI / 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, radius, Math.PI, (Math.PI * 3) / 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText('CG', radius + 6, 4);
+
+            ctx.restore();
+        }
+
+        function drawCPMarker(x, y) {
+            const radius = 9;
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#06b6d4';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#06b6d4';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText('CP', radius + 6, 4);
+
+            ctx.restore();
+        }
+
+        function createExhaustParticle(worldX, worldY, angle) {
+            const speed = 8 + Math.random() * 8;
+            // Particles eject from nozzle tip behind rocket body
+            const pAngle = angle + Math.PI + (Math.random() - 0.5) * 0.35;
+            
+            const px = worldX - Math.sin(angle) * 10;
+            const py = worldY - Math.cos(angle) * 10;
+
+            flightState.particles.push({
+                x: px,
+                y: py,
+                vx: Math.sin(pAngle) * speed,
+                vy: Math.cos(pAngle) * speed,
+                life: 1.0,
+                size: 5 + Math.random() * 8,
+                color: Math.random() > 0.35 ? '#f97316' : (Math.random() > 0.5 ? '#ef4444' : '#eab308')
+            });
+        }
+
+        function updateParticles() {
+            for (let i = flightState.particles.length - 1; i >= 0; i--) {
+                const p = flightState.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.022;
+                p.size *= 0.96;
+                if (p.life <= 0) {
+                    flightState.particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            flightState.particles.forEach(p => {
+                const pos = worldToScreen(p.x, p.y);
+                if (pos.x >= -20 && pos.x <= canvas.width + 20 && pos.y >= -20 && pos.y <= canvas.height + 20) {
+                    ctx.save();
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+        }
+
+        function toggleSimulation() {
+            if (flightState.isFlying) {
+                resetRocket();
+                return;
+            }
+
+            // Hide previous outcome modal
+            document.getElementById('outcomeModal').classList.add('hidden');
+
+            flightState.isFlying = true;
+            flightState.worldX = 0;
+            flightState.worldY = 0;
+            flightState.vx = 0;
+            flightState.vy = 0;
+            flightState.angle = 0;
+            flightState.angularVel = 0;
+            flightState.time = 0;
+            flightState.phase = 'PROPULSIÓN';
+            flightState.maxAltitude = 0;
+            flightState.particles = [];
+
+            camera.x = 0;
+            camera.y = 0;
+
+            document.getElementById('launchBtn').innerHTML = '<span>⏸️ Detener / Reajustar</span>';
+            document.getElementById('launchBtn').className = 'bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition flex items-center gap-2';
+
+            disableControls(true);
+            animateFlight();
+        }
+
+        function resetRocket() {
+            // Cancel running animation loop immediately
+            if (animId) {
+                cancelAnimationFrame(animId);
+                animId = null;
+            }
+
+            // Reset flight state & orientation to perfect vertical
+            flightState.isFlying = false;
+            flightState.worldX = 0;
+            flightState.worldY = 0;
+            flightState.vx = 0;
+            flightState.vy = 0;
+            flightState.angle = 0;
+            flightState.angularVel = 0;
+            flightState.time = 0;
+            flightState.particles = [];
+
+            // Reset camera position
+            camera.x = 0;
+            camera.y = 0;
+
+            const modal = document.getElementById('outcomeModal');
+            if (modal) modal.classList.add('hidden');
+            
+            const launchBtn = document.getElementById('launchBtn');
+            if (launchBtn) {
+                launchBtn.innerHTML = '<span>🚀 Simular Lanzamiento</span>';
+                launchBtn.className = 'bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition flex items-center gap-2';
+            }
+
+            disableControls(false);
+            updatePhysics();
+            drawScene();
+        }
+
+        function resetProgram() {
+            params.finPos = 85;
+            params.finWidth = 35;
+            params.finHeight = 35;
+            params.payloadMass = 0;
+
+            if (finPosRange) finPosRange.value = 85;
+            if (finWidthRange) finWidthRange.value = 35;
+            if (finHeightRange) finHeightRange.value = 35;
+            if (payloadRange) payloadRange.value = 0;
+
+            const finPosVal = document.getElementById('finPosVal');
+            const finWidthVal = document.getElementById('finWidthVal');
+            const finHeightVal = document.getElementById('finHeightVal');
+            const payloadVal = document.getElementById('payloadVal');
+
+            if (finPosVal) finPosVal.innerText = '85%';
+            if (finWidthVal) finWidthVal.innerText = '35 px';
+            if (finHeightVal) finHeightVal.innerText = '35 px';
+            if (payloadVal) payloadVal.innerText = '0 g';
+
+            resetRocket();
+        }
+
+        function disableControls(disable) {
+            finPosRange.disabled = disable;
+            finWidthRange.disabled = disable;
+            finHeightRange.disabled = disable;
+            payloadRange.disabled = disable;
+        }
+
+        function closeModal() {
+            resetRocket();
+        }
+
+        function animateFlight() {
+            if (!flightState.isFlying) return;
+
+            const dt = 0.016; // ~60fps step
+            flightState.time += dt;
+
+            const margin = calculated.marginCalibers;
+
+            // 1. Motor Thrust & Drag Physics
+            let thrust = 0;
+            if (flightState.time <= flightState.burnTime) {
+                flightState.phase = 'PROPULSIÓN';
+                thrust = 38.0; // Dynamic upward acceleration
+                createExhaustParticle(flightState.worldX, flightState.worldY, flightState.angle);
+                createExhaustParticle(flightState.worldX, flightState.worldY, flightState.angle);
+            } else if (flightState.vy > 0) {
+                flightState.phase = 'INERCIA';
+            } else {
+                flightState.phase = 'DESCONTROL';
+            }
+
+            const gravity = 9.8;
+            const dragFactor = 0.0015;
+
+            // Aerodynamic Torque & Stabilization / Instability Mechanics
+            if (calculated.status === 'ESTABLE') {
+                // Corrective aerodynamic torque restores angle to vertical
+                const angleCorrection = -flightState.angle * (margin * 3.5);
+                flightState.angularVel += angleCorrection * dt;
+                flightState.angularVel *= 0.90; // Dampening
+                flightState.angle += flightState.angularVel;
+            } else if (calculated.status === 'MARGINAL') {
+                // Swaying & oscillations
+                const instability = Math.sin(flightState.time * 8) * (0.35 / (margin + 0.1));
+                flightState.angularVel += (instability - flightState.angle * 1.5) * dt;
+                flightState.angularVel *= 0.94;
+                flightState.angle += flightState.angularVel;
+            } else {
+                // INESTABLE: Aerodynamic torque accentuates angle, causing violent tumbling
+                flightState.phase = 'DESCONTROL';
+                const instabilityTorque = Math.abs(margin) * 24.0;
+                
+                if (Math.abs(flightState.angle) < 0.05) {
+                    flightState.angularVel += (Math.random() - 0.5) * 1.5;
+                }
+
+                flightState.angularVel += Math.sign(flightState.angle || 1) * instabilityTorque * dt;
+                flightState.angle += flightState.angularVel * dt;
+            }
+
+            // Accelerations
+            const ax = Math.sin(flightState.angle) * thrust - (flightState.vx * Math.abs(flightState.vx) * dragFactor);
+            const ay = Math.cos(flightState.angle) * thrust - gravity - (flightState.vy * Math.abs(flightState.vy) * dragFactor);
+
+            // Integrate Velocity and Positions
+            flightState.vx += ax * dt * 10;
+            flightState.vy += ay * dt * 10;
+
+            flightState.worldX += flightState.vx * dt * 10;
+            flightState.worldY += flightState.vy * dt * 10;
+
+            // Ground crash check
+            if (flightState.worldY < 0) {
+                flightState.worldY = 0;
+                flightState.vx = 0;
+                flightState.vy = 0;
+            }
+
+            // Peak Altitude Tracker
+            const currentAltitudeMeters = Math.max(0, Math.floor(flightState.worldY / 10));
+            if (currentAltitudeMeters > flightState.maxAltitude) {
+                flightState.maxAltitude = currentAltitudeMeters;
+            }
+
+            // 2. Camera Dynamic Tracking (Smooth Lerp to Rocket Position)
+            camera.x += (flightState.worldX - camera.x) * 0.08;
+            camera.y += (flightState.worldY - camera.y) * 0.08;
+
+            updateParticles();
+            drawScene();
+
+            // Finish simulation after approximately 3 seconds of flight
+            const isFlightFinished = flightState.time >= 3.0;
+
+            if (isFlightFinished) {
+                showFlightOutcome();
+                return;
+            }
+
+            animId = requestAnimationFrame(animateFlight);
+        }
+
+        function showFlightOutcome() {
+            const modal = document.getElementById('outcomeModal');
+            const icon = document.getElementById('modalIcon');
+            const title = document.getElementById('modalTitle');
+            const desc = document.getElementById('modalDesc');
+
+            if (desc) desc.innerText = '';
+
+            if (calculated.status === 'ESTABLE') {
+                icon.innerText = '🚀';
+                title.innerText = '¡Vuelo Exitoso!';
+                title.className = 'text-2xl font-bold text-emerald-400 mb-6';
+            } else {
+                icon.innerText = '💥';
+                title.innerText = '¡Vuelo No Exitoso!';
+                title.className = 'text-2xl font-bold text-rose-400 mb-6';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        window.onload = function() {
+            initEvents();
+            updatePhysics();
+        };
+    </script>
+</body>
+</html>
